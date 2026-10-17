@@ -1,5 +1,6 @@
 import { parseSkill, sanitizeSkillName } from "../parse-skill";
-import { SKILL_EXPLANATION, type BuilderAnswers, type SkillDraft } from "../types";
+import { SKILL_EXPLANATION, type BuilderAnswers, type FollowUpAnswer, type SkillDraft } from "../types";
+import { followUpLine } from "./followup";
 import { SCRATCH_TEMPLATE, templateMarkdown, type SkillTemplate } from "./templates";
 
 const FALLBACK_EXAMPLE = `---
@@ -92,6 +93,8 @@ export type DraftInput = {
   answers: BuilderAnswers;
   template?: SkillTemplate | null;
   babyName?: string;
+  /** Her answer to the Create screen follow-up, if she gave one. */
+  followUp?: FollowUpAnswer | null;
 };
 
 /**
@@ -107,6 +110,7 @@ export function buildSkillDraft(input: DraftInput): SkillDraft {
     answers.wantHelpWith ? `- She wants help with: ${oneLine(answers.wantHelpWith)}` : "",
     answers.recentMoment ? `- A recent moment: ${oneLine(answers.recentMoment)}` : "",
     answers.answerShouldLookLike ? `- The answer should look like: ${oneLine(answers.answerShouldLookLike)}` : "",
+    followUpLine(input.followUp),
   ]
     .filter(Boolean)
     .join("\n");
@@ -114,6 +118,10 @@ export function buildSkillDraft(input: DraftInput): SkillDraft {
   let markdown = insertUnder(starterMarkdown(template, input.exampleMarkdown), "Instructions", context);
   if (answers.answerShouldLookLike) {
     markdown = insertUnder(markdown, "Output format", `She asked for: ${oneLine(answers.answerShouldLookLike)}`);
+  }
+  const followUpAnswer = input.followUp?.answer?.trim();
+  if (followUpAnswer) {
+    markdown = insertUnder(markdown, "Output format", `She also said: ${oneLine(followUpAnswer)}`);
   }
 
   const title = draftTitle(template, answers);

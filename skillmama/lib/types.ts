@@ -66,13 +66,26 @@ export type SkillDraft = {
   };
 };
 
-export type AgentMode = "use" | "create" | "draft";
+/** "ask": Claude asks one follow-up before writing the skill (Create screen chat). */
+export type AgentMode = "use" | "create" | "ask" | "draft";
+
+/** The one follow-up question, with short answers she can tap. */
+export type FollowUpQuestion = {
+  question: string;
+  suggestions: string[];
+};
+
+/** Her answer to the follow-up. An empty answer means she skipped it. */
+export type FollowUpAnswer = {
+  question: string;
+  answer: string;
+};
 
 export type AgentResponse = {
   reply: string;
   skillUsed: string;
   mode: AgentMode;
-  results: Activity[] | string[] | SkillDraft;
+  results: Activity[] | string[] | FollowUpQuestion | SkillDraft;
   learnPrompt: string;
 };
 
@@ -85,6 +98,10 @@ export type AgentRequest = {
   templateId?: string | null;
   /** Run this saved skill directly (Library tap, or right after saving). */
   skillName?: string | null;
+  /** With builderAnswers: return one follow-up question (mode "ask") instead of the draft. */
+  askFollowUp?: boolean;
+  /** With builderAnswers: her answer to the follow-up, used in the draft. */
+  followUp?: FollowUpAnswer | null;
 };
 
 export type Corpus = {

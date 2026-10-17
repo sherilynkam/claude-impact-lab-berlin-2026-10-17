@@ -1,5 +1,6 @@
 import { DEMO_ACTIVITIES } from "./demo-activities";
 import { buildSkillDraft } from "./skills/create";
+import { localFollowUp } from "./skills/followup";
 import { selectActivities } from "./skills/montessori";
 import { findSkill, runSkillLocally } from "./skills/run";
 import { findTemplate, templateFromText } from "./skills/templates";
@@ -101,6 +102,10 @@ export function runDemoAgent(request: AgentRequest, corpus: Corpus): AgentRespon
     };
   }
 
+  if (request.builderAnswers && request.askFollowUp) {
+    return localFollowUp(request.builderAnswers, baby);
+  }
+
   if (request.builderAnswers) {
     return {
       reply:
@@ -113,6 +118,7 @@ export function runDemoAgent(request: AgentRequest, corpus: Corpus): AgentRespon
         answers: request.builderAnswers,
         template: findTemplate(request.templateId) ?? templateFromText(message),
         babyName: baby.name,
+        followUp: request.followUp,
       }),
       learnPrompt: "Next time you can open this skill from your library.",
     };

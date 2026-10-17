@@ -6,6 +6,7 @@
 import { activityPool, emergency, feelings, normalizeActivities, runDemoAgent } from "./demo-agent";
 import { buildSkillDraft, finishDraft } from "./skills/create";
 import { selectActivities } from "./skills/montessori";
+import { DEFAULT_FOLLOW_UP, followUpIntro, followUpLine, followUpResponse } from "./skills/followup";
 import { findSkill, skillWithSafety } from "./skills/run";
 import { findTemplate, templateFromText, templateMarkdown } from "./skills/templates";
 import {
@@ -168,6 +169,7 @@ async function draftWithClaude(request: AgentRequest, corpus: Corpus): Promise<A
     answers,
     template,
     babyName: baby.name,
+    followUp: request.followUp,
   });
   const starting =
     template && template.id !== "feelings" && template.id !== "scratch"
@@ -185,6 +187,7 @@ Baby: ${baby.name || "the baby"}, ${baby.ageMonths} months. Materials at home: $
 She wants help with: ${answers.wantHelpWith}
 A recent moment: ${answers.recentMoment}
 The answer should look like: ${answers.answerShouldLookLike}
+${followUpLine(request.followUp) ? `Follow-up: ${followUpLine(request.followUp).slice(2)}. Build this into the instructions or output format.` : ""}
 ${starting}
 These safety rules will be added to every skill, so do not contradict them:
 ${corpus.safetyMarkdown}`;
@@ -231,6 +234,48 @@ ${corpus.safetyMarkdown}`;
     results: draft,
     learnPrompt: "Next time you can open this skill from your library.",
   };
+}
+
+/**
+ * The Create screen chat: after her three answers, Claude says what it understood
+ * and asks the one question that would change the skill most.
+ */
+async function followUpWithClaude(request: AgentRequest): Promise<AgentResponse | null> {
+  const answers = request.builderAnswers;
+  if (!answers) return null;
+  const baby = request.baby;
+  const template = findTemplate(request.templateId) ?? templateFromText(request.message ?? "");
+
+  const result = await messages({
+    model: CLAUDE_MODEL,
+    max_tokens: 1024,
+    system: `${DRAFT_SYSTEM}
+You are about to write a skill with her. Before writing, ask exactly one short follow-up question.`,
+    messages: [
+      {
+        role: "user",
+        content: `Return one JSON object: {"reply":"","question":"","suggestions":["",""]}
+- reply: one sentence starting with "Got it." that says what the skill will give her, using the baby's name and age.
+- question: the one question whose answer would change the skill most (for example length, tone, or when she will use it). Under 15 words. Do not repeat what she already told you.
+- suggestions: 2 or 3 short answers she can tap, under 6 words each.
+Baby: ${baby.name || "the baby"}, ${baby.ageMonths} months.
+${template ? `Template: ${template.name}.` : ""}
+She wants help with: ${answers.wantHelpWith}
+A recent moment: ${answers.recentMoment}
+The answer should look like: ${answers.answerShouldLookLike}`,
+      },
+    ],
+  });
+  const parsed = parseJsonObject(textFrom(result.content ?? []));
+  const question = stringField(parsed?.question, "");
+  if (!question) return null;
+  const suggestions = Array.isArray(parsed?.suggestions)
+    ? parsed.suggestions.filter((item): item is string => typeof item === "string" && item.trim() !== "").slice(0, 3)
+    : [];
+  return followUpResponse(stringField(parsed?.reply, followUpIntro(answers, baby)), {
+    question,
+    suggestions: suggestions.length ? suggestions : DEFAULT_FOLLOW_UP.suggestions,
+  });
 }
 
 /** Runs one saved skill: Claude follows her skill text, with the shared safety rules always added. */
@@ -374,6 +419,9 @@ export async function runAgent(request: AgentRequest, corpus: Corpus): Promise<A
   }
 
   try {
+    if (request.builderAnswers && request.askFollowUp) {
+      return (await followUpWithClaude(request)) ?? demo;
+    }
     if (request.builderAnswers) {
       return (await draftWithClaude(request, corpus)) ?? demo;
     }

@@ -30,6 +30,8 @@ import {
   type Baby,
   type BuilderAnswers,
   type Corpus,
+  type FollowUpAnswer,
+  type FollowUpQuestion,
   type JourneyEntry,
   type Reaction,
   type SkillCard,
@@ -66,6 +68,10 @@ type TalkPhase = "idle" | "listening" | "writing";
 
 function isDraft(results: AgentResponse["results"]): results is SkillDraft {
   return Boolean(results) && !Array.isArray(results) && "markdown" in results;
+}
+
+function isFollowUp(results: AgentResponse["results"]): results is FollowUpQuestion {
+  return Boolean(results) && !Array.isArray(results) && "question" in results;
 }
 
 function isActivityList(results: AgentResponse["results"]): results is Activity[] {
@@ -114,7 +120,7 @@ async function callAgent(request: AgentRequest, corpus: Corpus): Promise<AgentRe
     });
     if (response.ok) {
       const data = (await response.json()) as AgentResponse;
-      if (data && (data.mode === "use" || data.mode === "create" || data.mode === "draft")) return data;
+      if (data && (data.mode === "use" || data.mode === "create" || data.mode === "ask" || data.mode === "draft")) return data;
     }
   } catch {
     /* The page still runs the same demo brain in the browser. */
@@ -204,6 +210,8 @@ export function DemoApp({ corpus }: { corpus: Corpus }) {
   const [note, setNote] = useState("");
   const [answers, setAnswers] = useState<BuilderAnswers | null>(null);
   const [templateId, setTemplateId] = useState<string | null>(null);
+  const [followUp, setFollowUp] = useState<FollowUpQuestion | null>(null);
+  const [followUpAnswer, setFollowUpAnswer] = useState("");
   const [filter, setFilter] = useState<(typeof FILTERS)[number]["id"]>("all");
   const [error, setError] = useState("");
   const [babyName, setBabyName] = useState(DEFAULT_BABY.name);
@@ -250,6 +258,8 @@ export function DemoApp({ corpus }: { corpus: Corpus }) {
       builderAnswers?: BuilderAnswers | null;
       templateId?: string | null;
       skillName?: string | null;
+      askFollowUp?: boolean;
+      followUp?: FollowUpAnswer | null;
     },
   ) {
     const currentBaby = opts?.baby ?? baby;
@@ -258,7 +268,8 @@ export function DemoApp({ corpus }: { corpus: Corpus }) {
     setPartial("");
     setThinking(true);
     setError("");
-    setOverlay(opts?.builderAnswers ? "preview" : "results");
+    // The follow-up question is asked on the Create screen itself, as the next chat bubble.
+    setOverlay(opts?.builderAnswers ? (opts.askFollowUp ? "create" : "preview") : "results");
     const request: AgentRequest = {
       message,
       baby: currentBaby,
@@ -266,6 +277,8 @@ export function DemoApp({ corpus }: { corpus: Corpus }) {
       builderAnswers: opts && "builderAnswers" in opts ? opts.builderAnswers : null,
       templateId: opts?.templateId ?? null,
       skillName: opts?.skillName ?? null,
+      askFollowUp: opts?.askFollowUp ?? false,
+      followUp: opts?.followUp ?? null,
     };
     const [data] = await Promise.all([
       callAgent(request, corpus),
@@ -276,6 +289,11 @@ export function DemoApp({ corpus }: { corpus: Corpus }) {
     setThinking(false);
     if (data.mode === "create") {
       setAnswers(null);
+      setFollowUp(null);
+      setOverlay("create");
+    } else if (data.mode === "ask" && isFollowUp(data.results)) {
+      setFollowUp(data.results);
+      setFollowUpAnswer("");
       setOverlay("create");
     } else if (data.mode === "draft" && isDraft(data.results)) {
       setMarkdown(data.results.markdown);
@@ -315,6 +333,7 @@ export function DemoApp({ corpus }: { corpus: Corpus }) {
     setTranscript("");
     setAnswers(null);
     setTemplateId(null);
+    setFollowUp(null);
     setError("");
     setBabyName(DEFAULT_BABY.name);
     setParentName(DEFAULT_BABY.parentName);
@@ -333,6 +352,7 @@ export function DemoApp({ corpus }: { corpus: Corpus }) {
   function openTemplate(picked?: SkillTemplate | null) {
     const template = picked ?? SCRATCH_TEMPLATE;
     setTemplateId(template.id);
+    setFollowUp(null);
     setTranscript(template.line);
     setAnswers({
       wantHelpWith: template.want,
@@ -679,7 +699,11 @@ export function DemoApp({ corpus }: { corpus: Corpus }) {
         </div>
         <div className="progress" aria-hidden="true"><span style={{ width: "66%" }} /></div>
         {transcript ? <div className="bubble mine">{transcript}</div> : null}
-        <div className="bubble">{response?.reply || "Three short questions, then you can read the skill before saving it."}</div>
+        <div className="bubble">
+          {response?.mode === "create" && response.reply
+            ? response.reply
+            : "You don't have a skill for that yet. Let's make one together. What should it help you with most?"}
+        </div>
         <div className="goals">
           {template.goals.map((goal) => (
             <button key={goal} type="button" className="goal" aria-pressed={form.wantHelpWith === goal} onClick={() => setAnswers({ ...form, wantHelpWith: goal })}>
@@ -699,17 +723,72 @@ export function DemoApp({ corpus }: { corpus: Corpus }) {
           {BUILDER_QUESTIONS[2]}
           <input value={form.answerShouldLookLike} onChange={(event) => setAnswers({ ...form, answerShouldLookLike: event.target.value })} />
         </label>
-        <button
-          type="button"
-          className="primary"
-          disabled={thinking || !form.wantHelpWith.trim()}
-          onClick={() => {
-            setAnswers(form);
-            void ask(transcript || form.wantHelpWith, { builderAnswers: form, templateId });
-          }}
-        >
-          Review skill
-        </button>
+        {!followUp ? (
+          <button
+            type="button"
+            className="primary"
+            disabled={thinking || !form.wantHelpWith.trim()}
+            onClick={() => {
+              setAnswers(form);
+              // First Claude asks one follow-up; the draft comes after her answer.
+              void ask(transcript || form.wantHelpWith, { builderAnswers: form, templateId, askFollowUp: true });
+            }}
+          >
+            {thinking ? "Thinking" : "Review skill"}
+          </button>
+        ) : (
+          <>
+            <div className="bubble">
+              {response?.mode === "ask" && response.reply ? `${response.reply} ` : ""}
+              {followUp.question}
+            </div>
+            <div className="goals">
+              {followUp.suggestions.map((suggestion) => (
+                <button
+                  key={suggestion}
+                  type="button"
+                  className="goal"
+                  aria-pressed={followUpAnswer === suggestion}
+                  onClick={() => setFollowUpAnswer(suggestion)}
+                >
+                  {suggestion}
+                </button>
+              ))}
+            </div>
+            <label className="field">
+              Your answer
+              <input value={followUpAnswer} onChange={(event) => setFollowUpAnswer(event.target.value)} />
+            </label>
+            <button
+              type="button"
+              className="primary"
+              disabled={thinking || !followUpAnswer.trim()}
+              onClick={() =>
+                void ask(transcript || form.wantHelpWith, {
+                  builderAnswers: form,
+                  templateId,
+                  followUp: { question: followUp.question, answer: followUpAnswer.trim() },
+                })
+              }
+            >
+              Write my skill
+            </button>
+            <button
+              type="button"
+              className="ghost"
+              disabled={thinking}
+              onClick={() =>
+                void ask(transcript || form.wantHelpWith, {
+                  builderAnswers: form,
+                  templateId,
+                  followUp: { question: followUp.question, answer: "" },
+                })
+              }
+            >
+              Skip this question
+            </button>
+          </>
+        )}
       </>
     );
   } else if (overlay === "preview" && !draft) {
