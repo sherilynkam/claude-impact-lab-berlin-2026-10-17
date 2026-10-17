@@ -3,11 +3,19 @@
 // Activities still come from the JSON, not from the model. With no key, or if Claude
 // fails, runDemoAgent keeps the same JSON shape so the demo still plays.
 
-import { activityPool, emergency, feelings, normalizeActivities, runDemoAgent } from "./demo-agent";
+import {
+  activityPool,
+  emergency,
+  feelings,
+  normalizeActivities,
+  runDemoAgent,
+  wantsActivity,
+  wantsNewSkill,
+} from "./demo-agent";
 import { buildSkillDraft, finishDraft } from "./skills/create";
 import { selectActivities } from "./skills/montessori";
 import { DEFAULT_FOLLOW_UP, followUpIntro, followUpLine, followUpResponse } from "./skills/followup";
-import { findSkill, skillWithSafety } from "./skills/run";
+import { findFeelingsSkill, findSkill, skillWithSafety } from "./skills/run";
 import { findTemplate, templateFromText, templateMarkdown } from "./skills/templates";
 import {
   BUILDER_QUESTIONS,
@@ -26,7 +34,7 @@ const FAIL = "The answer isn’t coming through right now. You can send the sent
 const SYSTEM = `You are SkillMama, talking to a mom who is in the room with her baby.
 Short sentences. Calm. Concrete. No diagnosis.
 Ask at most one follow-up, and only when baby.ageMonths is missing or 0: ask how many months old the baby is.
-When she asks what to do, Montessori, play, or keeping the baby busy: call montessori_activity.
+When she asks what to do, Montessori, play, or keeping the baby busy: call montessori_activity. That skill always exists (montessori-activity-finder), even when her saved skills list is empty, so never call create_skill for activities.
 When one of her saved skills fits the question: do not call a tool. Answer from that skill's markdown.
 When the topic has no skill yet, especially feelings or emotional development, or she asks to make a skill: call create_skill.
 Stay inside tool results for activities. Do not invent activities.
@@ -371,8 +379,14 @@ Seed skill name: montessori-activity-finder.`,
     for (const tool of toolUses) {
       if (tool.name === "create_skill") {
         const text = request.message.toLowerCase();
-        if (feelings(text) && (request.momSkills?.length ?? 0) > 0 && !/template:/.test(text)) {
-          return null;
+        // She already has a feelings skill: run it instead of making another one.
+        const feelingsSkill = findFeelingsSkill(request.momSkills);
+        if (feelings(text) && feelingsSkill && !/template:/.test(text)) {
+          return runSkillWithClaude(request, corpus, feelingsSkill);
+        }
+        // Guard: an activity request never needs a new skill; the Montessori skill always exists.
+        if (wantsActivity(text) && !wantsNewSkill(text)) {
+          return activityResponse(activitiesFor(request, corpus, []), "", "");
         }
         return createResponse();
       }

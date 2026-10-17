@@ -12,6 +12,16 @@ export function findSkill(skills: SkillCard[] | undefined, name: string | null |
   return (skills ?? []).find((skill) => skill.name === name) ?? null;
 }
 
+/** Her saved skill about feelings, if she has one (template "feelings", or named that way). */
+export function findFeelingsSkill(skills: SkillCard[] | undefined) {
+  return (
+    (skills ?? []).find((skill) => {
+      const parsed = parseSkill(skill.markdown);
+      return parsed.template === "feelings" || /emotion|feeling|bonding/i.test(`${skill.name} ${parsed.title}`);
+    }) ?? null
+  );
+}
+
 /** The skill text Claude follows: her edited markdown plus the shared safety rules, always. */
 export function skillWithSafety(card: SkillCard, safetyMarkdown: string) {
   return withSafety(card.markdown, safetyMarkdown);

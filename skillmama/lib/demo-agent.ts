@@ -2,7 +2,7 @@ import { DEMO_ACTIVITIES } from "./demo-activities";
 import { buildSkillDraft } from "./skills/create";
 import { localFollowUp } from "./skills/followup";
 import { selectActivities } from "./skills/montessori";
-import { findSkill, runSkillLocally } from "./skills/run";
+import { findFeelingsSkill, findSkill, runSkillLocally } from "./skills/run";
 import { findTemplate, templateFromText } from "./skills/templates";
 import {
   BUILDER_QUESTIONS,
@@ -56,6 +56,11 @@ export function emergency(text: string) {
   return /not breathing|isn't breathing|isnt breathing|cannot breathe|can't breathe|unconscious|turned blue|blue lips|notfall|atmet nicht|keine luft/.test(
     text,
   );
+}
+
+/** Asks for something to do with the baby: the Montessori activity skill's job. */
+export function wantsActivity(text: string) {
+  return /montessori|activit|play|keep (her|him|them|the baby) busy|what (can|should) (i|we) do/.test(text);
 }
 
 export function wantsNewSkill(text: string) {
@@ -137,10 +142,10 @@ export function runDemoAgent(request: AgentRequest, corpus: Corpus): AgentRespon
     };
   }
 
-  if (feelings(text) && momSkills.length > 0 && !/template:/.test(text)) {
-    const card =
-      momSkills.find((skill) => /emotion|feeling/.test(skill.name)) ?? momSkills[momSkills.length - 1];
-    return runSkillLocally(card, request);
+  // A feelings question runs her feelings skill; with no such skill she is offered to make one.
+  const feelingsSkill = findFeelingsSkill(momSkills);
+  if (feelings(text) && feelingsSkill && !/template:/.test(text)) {
+    return runSkillLocally(feelingsSkill, request);
   }
 
   if (wantsNewSkill(text)) {
