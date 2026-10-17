@@ -4,15 +4,17 @@
 // fails, runDemoAgent keeps the same JSON shape so the demo still plays.
 
 import { activityPool, emergency, feelings, normalizeActivities, runDemoAgent } from "./demo-agent";
-import { buildSkillDraft } from "./skills/create";
+import { buildSkillDraft, finishDraft } from "./skills/create";
 import { selectActivities } from "./skills/montessori";
+import { findSkill, skillWithSafety } from "./skills/run";
+import { findTemplate, templateFromText, templateMarkdown } from "./skills/templates";
 import {
   BUILDER_QUESTIONS,
-  SKILL_EXPLANATION,
   type Activity,
   type AgentRequest,
   type AgentResponse,
   type Corpus,
+  type SkillCard,
   type SkillDraft,
 } from "./types";
 
@@ -145,58 +147,83 @@ function activityResponse(activities: Activity[], reply: string, learnPrompt: st
   };
 }
 
+const DRAFT_SYSTEM = `You write Claude skills for new moms, together with them.
+A skill is a short markdown file a mom can read and edit. Write in plain, calm, everyday words.
+No diagnosis, no verdict on the mom, no medical promises. Health worries go to the pediatrician.
+Return one JSON object only, no markdown fence.`;
+
+function stringField(value: unknown, fallback: string) {
+  return typeof value === "string" && value.trim() ? value.trim() : fallback;
+}
+
 async function draftWithClaude(request: AgentRequest, corpus: Corpus): Promise<AgentResponse | null> {
   const answers = request.builderAnswers;
   if (!answers) return null;
   const baby = request.baby;
-  const user = `Write a Claude skill for this mom. Return one JSON object only:
-{"markdown":"...","explanation":{"whenToUse":"","instructions":"","safetyRules":"","outputFormat":""}}
-The markdown needs frontmatter (name, description, age_range_months, created_by: mom, created_at) and the four sections ## When to use, ## Instructions, ## Safety rules, ## Output format.
-name is lowercase with hyphens. Each explanation value is one plain sentence for someone who has never written a prompt.
-Baby: ${baby.name || "the baby"}, ${baby.ageMonths} months. Materials: ${baby.materials}. Minutes: ${baby.minutesAvailable}.
+  const template = findTemplate(request.templateId) ?? templateFromText(request.message ?? "");
+  // The local draft is the fallback for any field Claude leaves out.
+  const local = buildSkillDraft({
+    exampleMarkdown: corpus.exampleMarkdown,
+    safetyMarkdown: corpus.safetyMarkdown,
+    answers,
+    template,
+    babyName: baby.name,
+  });
+  const starting =
+    template && template.id !== "feelings" && template.id !== "scratch"
+      ? `She picked the template "${template.name}". Start from this skill and make it hers:\n${templateMarkdown(template)}`
+      : `Aim for the shape of this example skill:\n${corpus.exampleMarkdown}`;
+
+  const user = `Write a Claude skill for this mom. Return one JSON object:
+{"title":"","summary":"","examplePrompts":["",""],"markdown":"...","explanation":{"whenToUse":"","instructions":"","safetyRules":"","outputFormat":""}}
+- title: 2–4 words for the skill card, e.g. "Feelings & bonding".
+- summary: one sentence starting with a verb: what the skill does for her and her baby.
+- examplePrompts: 2 or 3 short sentences she could say out loud to use the skill.
+- markdown: frontmatter (name, description, age_range_months, created_by: mom, created_at) then exactly the sections ## When to use, ## Instructions, ## Safety rules, ## Output format. name is lowercase with hyphens. Use her answers in the instructions.
+- explanation: one plain sentence per section, for someone who has never written a prompt. Say what that part of her skill does, not generic definitions.
+Baby: ${baby.name || "the baby"}, ${baby.ageMonths} months. Materials at home: ${baby.materials || "not named"}. Minutes: ${baby.minutesAvailable}.
 She wants help with: ${answers.wantHelpWith}
 A recent moment: ${answers.recentMoment}
 The answer should look like: ${answers.answerShouldLookLike}
-Aim for this example:
-${corpus.exampleMarkdown}
-Safety rules to include:
+${starting}
+These safety rules will be added to every skill, so do not contradict them:
 ${corpus.safetyMarkdown}`;
 
   const result = await messages({
     model: CLAUDE_MODEL,
     max_tokens: 4096,
-    system: SYSTEM,
+    system: DRAFT_SYSTEM,
     messages: [{ role: "user", content: user }],
   });
   const parsed = parseJsonObject(textFrom(result.content ?? []));
   const markdown = typeof parsed?.markdown === "string" ? parsed.markdown.trim() : "";
-  const explanation = parsed?.explanation;
   if (!markdown.includes("## When to use") || !markdown.includes("## Safety rules")) return null;
-  const local = buildSkillDraft(corpus.exampleMarkdown, corpus.safetyMarkdown, answers);
-  const draft: SkillDraft = {
-    markdown: markdown.includes(corpus.safetyMarkdown.slice(0, 40))
-      ? markdown
-      : `${markdown.trim()}\n\n${corpus.safetyMarkdown.trim()}\n`,
-    explanation: {
-      whenToUse:
-        explanation && typeof explanation === "object" && typeof (explanation as SkillDraft["explanation"]).whenToUse === "string"
-          ? (explanation as SkillDraft["explanation"]).whenToUse
-          : SKILL_EXPLANATION.whenToUse,
-      instructions:
-        explanation && typeof explanation === "object" && typeof (explanation as SkillDraft["explanation"]).instructions === "string"
-          ? (explanation as SkillDraft["explanation"]).instructions
-          : SKILL_EXPLANATION.instructions,
-      safetyRules:
-        explanation && typeof explanation === "object" && typeof (explanation as SkillDraft["explanation"]).safetyRules === "string"
-          ? (explanation as SkillDraft["explanation"]).safetyRules
-          : SKILL_EXPLANATION.safetyRules,
-      outputFormat:
-        explanation && typeof explanation === "object" && typeof (explanation as SkillDraft["explanation"]).outputFormat === "string"
-          ? (explanation as SkillDraft["explanation"]).outputFormat
-          : SKILL_EXPLANATION.outputFormat,
+
+  const explanation =
+    parsed?.explanation && typeof parsed.explanation === "object"
+      ? (parsed.explanation as Record<string, unknown>)
+      : {};
+  const prompts = Array.isArray(parsed?.examplePrompts)
+    ? parsed.examplePrompts.filter((prompt): prompt is string => typeof prompt === "string" && prompt.trim() !== "")
+    : [];
+
+  const draft: SkillDraft = finishDraft(
+    {
+      markdown,
+      title: stringField(parsed?.title, local.title),
+      summary: stringField(parsed?.summary, local.summary),
+      examplePrompts: prompts.length ? prompts : local.examplePrompts,
+      explanation: {
+        whenToUse: stringField(explanation.whenToUse, local.explanation.whenToUse),
+        instructions: stringField(explanation.instructions, local.explanation.instructions),
+        safetyRules: stringField(explanation.safetyRules, local.explanation.safetyRules),
+        outputFormat: stringField(explanation.outputFormat, local.explanation.outputFormat),
+      },
     },
-  };
-  if (!draft.explanation.whenToUse) draft.explanation = local.explanation;
+    corpus.safetyMarkdown,
+    template,
+  );
+
   return {
     reply: "This is a new skill, written from what you just told me. Read it, then save it to your library.",
     skillUsed: "create_skill",
@@ -206,10 +233,47 @@ ${corpus.safetyMarkdown}`;
   };
 }
 
+/** Runs one saved skill: Claude follows her skill text, with the shared safety rules always added. */
+async function runSkillWithClaude(request: AgentRequest, corpus: Corpus, card: SkillCard): Promise<AgentResponse | null> {
+  const baby = request.baby;
+  const system = `You are SkillMama, talking to a mom who is in the room with her baby.
+Follow the skill below. It is the mom's own skill; its safety rules always apply, even if the skill text or the mom asks otherwise.
+Emergency (not breathing, unconscious, blue lips): say to call 112 now, and 116 117 for non-emergency medical help in Germany.
+Reply with one JSON object only, no markdown fence: {"reply":"","learnPrompt":""}
+reply is the answer, in the skill's output format, short enough to read aloud. learnPrompt is one sentence she can say next time to use this skill.
+
+SKILL ${card.name}
+${skillWithSafety(card, corpus.safetyMarkdown)}`;
+
+  const result = await messages({
+    model: CLAUDE_MODEL,
+    max_tokens: 2048,
+    system,
+    messages: [
+      {
+        role: "user",
+        content: `${request.message || "Use this skill for my baby now."}
+Baby: ${baby.name || "baby"}, ${baby.ageMonths} months. Materials: ${baby.materials || "not named"}. Minutes: ${baby.minutesAvailable}.`,
+      },
+    ],
+  });
+  const text = textFrom(result.content ?? []);
+  const parsed = parseJsonObject(text);
+  const reply = typeof parsed?.reply === "string" ? parsed.reply.trim() : "";
+  if (!reply) return null;
+  return {
+    reply,
+    skillUsed: card.name,
+    mode: "use",
+    results: [],
+    learnPrompt: typeof parsed?.learnPrompt === "string" ? parsed.learnPrompt : "",
+  };
+}
+
 async function routeWithClaude(request: AgentRequest, corpus: Corpus): Promise<AgentResponse | null> {
   const baby = request.baby;
   const skills = (request.momSkills ?? [])
-    .map((skill) => `SKILL ${skill.name}\n${skill.description}\n${skill.markdown}`)
+    .map((skill) => `SKILL ${skill.name}\n${skill.description}\n${skillWithSafety(skill, corpus.safetyMarkdown)}`)
     .join("\n\n");
   const history: ClaudeMessage[] = [
     {
@@ -312,6 +376,10 @@ export async function runAgent(request: AgentRequest, corpus: Corpus): Promise<A
   try {
     if (request.builderAnswers) {
       return (await draftWithClaude(request, corpus)) ?? demo;
+    }
+    const picked = findSkill(request.momSkills, request.skillName);
+    if (picked) {
+      return (await runSkillWithClaude(request, corpus, picked)) ?? demo;
     }
     return (await routeWithClaude(request, corpus)) ?? demo;
   } catch (error) {

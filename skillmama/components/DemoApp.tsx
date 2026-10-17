@@ -4,8 +4,10 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ageLabel, DEFAULT_BABY, monthsFromDob, withAge } from "../lib/baby";
 import { activityPool, runDemoAgent } from "../lib/demo-agent";
 import { cardFromMarkdown, libraryCards, seedSkill, upsertMomSkill } from "../lib/library";
-import { titleFromName } from "../lib/parse-skill";
+import { parseSkill, skillTitle, titleFromName } from "../lib/parse-skill";
+import { withSafety } from "../lib/skills/create";
 import { selectActivities } from "../lib/skills/montessori";
+import { PICKER_TEMPLATES, SCRATCH_TEMPLATE, findTemplate, type SkillTemplate } from "../lib/skills/templates";
 import {
   clearDemo,
   loadBaby,
@@ -42,16 +44,8 @@ const DEMO_LINES = [
   "Help me figure out emotional development for my kid.",
 ];
 
-const TEMPLATES = [
-  { cat: "dev", name: "Feelings & bonding", desc: "Small ways to support her emotions", want: "Ideas to support her feelings", line: "Help me figure out emotional development for my kid." },
-  { cat: "dev", name: "First words", desc: "Talk, sing and read at her level", want: "Ways to talk with her at this age", line: "Help me make a skill. Template: First words." },
-  { cat: "dev", name: "Movement & tummy time", desc: "Age-fit ways to move and explore", want: "A short way for her to move", line: "Help me make a skill. Template: Movement." },
-  { cat: "care", name: "Sleep routine", desc: "A calm, simple bedtime rhythm", want: "A simple bedtime rhythm", line: "Help me make a skill. Template: Sleep routine." },
-  { cat: "care", name: "Bath & care time", desc: "Turn daily care into connection", want: "Make care time feel calm", line: "Help me make a skill. Template: Bath and care." },
-  { cat: "me", name: "A moment for me", desc: "5-minute resets for tired days", want: "A 5-minute reset when I am tired", line: "Help me make a skill. Template: A moment for me." },
-] as const;
-
-const GOALS = ["What's normal at her age", "Ideas to support her feelings", "Help me read her cues"];
+// Templates live in lib/skills/templates.ts so the server builds the skill from the same template.
+const TEMPLATES = PICKER_TEMPLATES;
 
 const REACTIONS: { id: Reaction; label: string; hint: string }[] = [
   { id: "loved", label: "Loved it", hint: "Suggest more like this" },
@@ -209,6 +203,7 @@ export function DemoApp({ corpus }: { corpus: Corpus }) {
   const [reaction, setReaction] = useState<Reaction>("loved");
   const [note, setNote] = useState("");
   const [answers, setAnswers] = useState<BuilderAnswers | null>(null);
+  const [templateId, setTemplateId] = useState<string | null>(null);
   const [filter, setFilter] = useState<(typeof FILTERS)[number]["id"]>("all");
   const [error, setError] = useState("");
   const [babyName, setBabyName] = useState(DEFAULT_BABY.name);
@@ -249,7 +244,13 @@ export function DemoApp({ corpus }: { corpus: Corpus }) {
 
   async function ask(
     message: string,
-    opts?: { baby?: Baby; momSkills?: SkillCard[]; builderAnswers?: BuilderAnswers | null },
+    opts?: {
+      baby?: Baby;
+      momSkills?: SkillCard[];
+      builderAnswers?: BuilderAnswers | null;
+      templateId?: string | null;
+      skillName?: string | null;
+    },
   ) {
     const currentBaby = opts?.baby ?? baby;
     if (!currentBaby) return;
@@ -263,6 +264,8 @@ export function DemoApp({ corpus }: { corpus: Corpus }) {
       baby: currentBaby,
       momSkills: opts?.momSkills ?? momSkills,
       builderAnswers: opts && "builderAnswers" in opts ? opts.builderAnswers : null,
+      templateId: opts?.templateId ?? null,
+      skillName: opts?.skillName ?? null,
     };
     const [data] = await Promise.all([
       callAgent(request, corpus),
@@ -311,6 +314,7 @@ export function DemoApp({ corpus }: { corpus: Corpus }) {
     setResponse(null);
     setTranscript("");
     setAnswers(null);
+    setTemplateId(null);
     setError("");
     setBabyName(DEFAULT_BABY.name);
     setParentName(DEFAULT_BABY.parentName);
@@ -326,13 +330,14 @@ export function DemoApp({ corpus }: { corpus: Corpus }) {
     setTab("today");
   }
 
-  function openTemplate(template?: { want: string; line: string }) {
-    const line = template?.line ?? "Help me make a skill. Template: start from scratch.";
-    setTranscript(line);
+  function openTemplate(picked?: SkillTemplate | null) {
+    const template = picked ?? SCRATCH_TEMPLATE;
+    setTemplateId(template.id);
+    setTranscript(template.line);
     setAnswers({
-      wantHelpWith: template?.want ?? "",
+      wantHelpWith: template.want,
       recentMoment: "",
-      answerShouldLookLike: "One thing I can say and one thing I can do.",
+      answerShouldLookLike: template.answerShouldLookLike,
     });
     setResponse({
       reply: "You don't have a skill for that yet. Let's make one together. What should it help you with most?",
@@ -369,16 +374,20 @@ export function DemoApp({ corpus }: { corpus: Corpus }) {
 
   function saveSkill() {
     if (!markdown.trim()) return;
-    const card = cardFromMarkdown(markdown);
+    // Her edits stay; the shared safety rules are put back if the edit removed them.
+    const card = cardFromMarkdown(withSafety(markdown, corpus.safetyMarkdown));
     const nextSkills = upsertMomSkill(momSkills, card);
     setMomSkills(nextSkills);
     saveSkills(nextSkills);
     setOverlay(null);
     setTab("skills");
-    void ask(transcript || "Help me figure out emotional development for my kid.", {
-      momSkills: nextSkills,
-      builderAnswers: null,
-    });
+    void runSkill(card, nextSkills);
+  }
+
+  /** Runs one saved skill directly, with one of its "Say it like" sentences. */
+  function runSkill(card: SkillCard, skills: SkillCard[] = momSkills) {
+    const prompt = parseSkill(card.markdown).examplePrompts[0] ?? `Use my ${skillTitle(card.markdown, card.name)} skill.`;
+    return ask(prompt, { momSkills: skills, builderAnswers: null, skillName: card.name });
   }
 
   function speak(activity: Activity) {
@@ -453,7 +462,10 @@ export function DemoApp({ corpus }: { corpus: Corpus }) {
       : response?.skillUsed === "montessori_activity" || response?.skillUsed === "montessori-activity-finder"
         ? "Montessori activity"
         : response?.skillUsed
-          ? titleFromName(response.skillUsed)
+          ? (() => {
+              const mine = momSkills.find((skill) => skill.name === response.skillUsed);
+              return mine ? skillTitle(mine.markdown, mine.name) : titleFromName(response.skillUsed);
+            })()
           : "Finding a skill";
 
   const listening = talkPhase !== "idle" && !overlay;
@@ -650,10 +662,11 @@ export function DemoApp({ corpus }: { corpus: Corpus }) {
       </>
     );
   } else if (overlay === "create") {
+    const template = findTemplate(templateId) ?? TEMPLATES[0];
     const form = answers ?? {
       wantHelpWith: "",
       recentMoment: "",
-      answerShouldLookLike: "One thing I can say and one thing I can do.",
+      answerShouldLookLike: template.answerShouldLookLike,
     };
     body = (
       <>
@@ -661,14 +674,14 @@ export function DemoApp({ corpus }: { corpus: Corpus }) {
           <Back label="Back" onClick={() => setOverlay("templates")} />
           <div>
             <div className="card-title" style={{ fontSize: 18 }}>New skill</div>
-            <div className="muted">Step 2 of 3</div>
+            <div className="muted">Step 2 of 3{templateId && templateId !== "scratch" ? ` · from template: ${template.name}` : ""}</div>
           </div>
         </div>
         <div className="progress" aria-hidden="true"><span style={{ width: "66%" }} /></div>
         {transcript ? <div className="bubble mine">{transcript}</div> : null}
         <div className="bubble">{response?.reply || "Three short questions, then you can read the skill before saving it."}</div>
         <div className="goals">
-          {GOALS.map((goal) => (
+          {template.goals.map((goal) => (
             <button key={goal} type="button" className="goal" aria-pressed={form.wantHelpWith === goal} onClick={() => setAnswers({ ...form, wantHelpWith: goal })}>
               {goal}
             </button>
@@ -692,7 +705,7 @@ export function DemoApp({ corpus }: { corpus: Corpus }) {
           disabled={thinking || !form.wantHelpWith.trim()}
           onClick={() => {
             setAnswers(form);
-            void ask(transcript || form.wantHelpWith, { builderAnswers: form });
+            void ask(transcript || form.wantHelpWith, { builderAnswers: form, templateId });
           }}
         >
           Review skill
@@ -719,14 +732,14 @@ export function DemoApp({ corpus }: { corpus: Corpus }) {
           <div className="preview-head">
             <div className="swatch sm" style={{ background: "rgba(255,255,255,0.22)" }}>♥</div>
             <div>
-              <div className="card-title" style={{ color: "white" }}>{titleFromName(cardFromMarkdown(markdown || draft.markdown).name)}</div>
+              <div className="card-title" style={{ color: "white" }}>{draft.title || titleFromName(cardFromMarkdown(markdown || draft.markdown).name)}</div>
               <div>For {baby.name}</div>
             </div>
           </div>
           <div className="preview-body">
             <div>
               <div className="section-label">What it does</div>
-              <p className="muted">{draft.explanation.whenToUse}</p>
+              <p className="muted">{draft.summary || draft.explanation.whenToUse}</p>
             </div>
             <div>
               <div className="section-label">How it answers</div>
@@ -740,6 +753,14 @@ export function DemoApp({ corpus }: { corpus: Corpus }) {
               <div className="section-label">What Claude should do</div>
               <p className="muted">{draft.explanation.instructions}</p>
             </div>
+            {draft.examplePrompts?.length ? (
+              <div>
+                <div className="section-label">Say it like</div>
+                {draft.examplePrompts.map((prompt) => (
+                  <p className="muted" key={prompt}>&ldquo;{prompt}&rdquo;</p>
+                ))}
+              </div>
+            ) : null}
           </div>
         </div>
         <label className="field">
@@ -792,12 +813,7 @@ export function DemoApp({ corpus }: { corpus: Corpus }) {
         <button
           type="button"
           className="skill-row"
-          onClick={() =>
-            openTemplate({
-              want: "Simple, age-fit meals and snacks",
-              line: "Help me make a skill. Template: Meal planner.",
-            })
-          }
+          onClick={() => openTemplate(findTemplate("meal-planner"))}
         >
           <div className="swatch sm" style={{ background: "linear-gradient(135deg,#A06CE6,#C3A2F2)" }}>M</div>
           <div className="copy">
@@ -808,10 +824,10 @@ export function DemoApp({ corpus }: { corpus: Corpus }) {
         </button>
         <div className="section-label">Made by you</div>
         {cards.filter((card) => card.createdBy === "mom").map((card) => (
-          <button key={card.name} type="button" className="skill-row" onClick={() => void ask("Help me figure out emotional development for my kid.")}>
-            <div className="swatch sm" style={{ background: "linear-gradient(135deg,#7357DF,#8A4FD8)" }}>{card.name.slice(0, 1).toUpperCase()}</div>
+          <button key={card.name} type="button" className="skill-row" onClick={() => void runSkill(card)}>
+            <div className="swatch sm" style={{ background: "linear-gradient(135deg,#7357DF,#8A4FD8)" }}>{skillTitle(card.markdown, card.name).slice(0, 1).toUpperCase()}</div>
             <div className="copy">
-              <div className="card-title">{titleFromName(card.name)}</div>
+              <div className="card-title">{skillTitle(card.markdown, card.name)}</div>
               <div className="muted">{card.description}</div>
               <span className="tag">added by you</span>
             </div>

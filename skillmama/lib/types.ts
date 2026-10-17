@@ -52,6 +52,12 @@ export type BuilderAnswers = {
 
 export type SkillDraft = {
   markdown: string;
+  /** Card title, e.g. "Feelings & bonding". */
+  title: string;
+  /** "What it does": one plain sentence. */
+  summary: string;
+  /** "Say it like": 2–3 sentences she can say to run the skill. */
+  examplePrompts: string[];
   explanation: {
     whenToUse: string;
     instructions: string;
@@ -75,6 +81,10 @@ export type AgentRequest = {
   baby: Baby;
   momSkills?: SkillCard[];
   builderAnswers?: BuilderAnswers | null;
+  /** Template picked on the Templates screen, e.g. "sleep-routine". Shapes the draft. */
+  templateId?: string | null;
+  /** Run this saved skill directly (Library tap, or right after saving). */
+  skillName?: string | null;
 };
 
 export type Corpus = {

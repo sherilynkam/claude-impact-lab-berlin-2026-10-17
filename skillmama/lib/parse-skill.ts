@@ -8,6 +8,12 @@ export type SkillSections = {
 export type ParsedSkill = {
   name: string;
   description: string;
+  /** Display title, e.g. "Feelings & bonding". Empty for older skills. */
+  title: string;
+  /** Template id the skill started from, e.g. "sleep-routine". */
+  template: string;
+  /** "Say it like" sentences, stored as `say_it_like: a | b`. */
+  examplePrompts: string[];
   sections: SkillSections;
 };
 
@@ -47,8 +53,19 @@ export function parseSkill(markdown: string): ParsedSkill {
   return {
     name: fields.name ?? "",
     description: fields.description ?? "",
+    title: fields.title ?? "",
+    template: fields.template ?? "",
+    examplePrompts: (fields.say_it_like ?? "")
+      .split("|")
+      .map((prompt) => prompt.trim())
+      .filter(Boolean),
     sections,
   };
+}
+
+/** Title for a skill card: the frontmatter title when there is one, else the name. */
+export function skillTitle(markdown: string, name: string) {
+  return parseSkill(markdown).title || titleFromName(name);
 }
 
 export function sanitizeSkillName(name: string) {

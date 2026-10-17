@@ -1,14 +1,14 @@
 import { DEMO_ACTIVITIES } from "./demo-activities";
 import { buildSkillDraft } from "./skills/create";
 import { selectActivities } from "./skills/montessori";
-import { titleFromName } from "./parse-skill";
+import { findSkill, runSkillLocally } from "./skills/run";
+import { findTemplate, templateFromText } from "./skills/templates";
 import {
   BUILDER_QUESTIONS,
   type Activity,
   type AgentRequest,
   type AgentResponse,
   type Corpus,
-  type SkillCard,
 } from "./types";
 
 function isActivity(value: unknown): value is Activity {
@@ -74,11 +74,6 @@ function activityReply(baby: AgentRequest["baby"]) {
   return bits.filter(Boolean).join(" ");
 }
 
-function momReply(card: SkillCard) {
-  const title = titleFromName(card.name);
-  return `Using your skill “${title}”. You can say: “I’m here, I’m going to see what you need.” Then change one thing — hunger, a wet diaper, tiredness, or too much going on — and wait a minute. Call the pediatrician if you are worried about health. This is not a diagnosis.`;
-}
-
 export function runDemoAgent(request: AgentRequest, corpus: Corpus): AgentResponse {
   const message = request.message?.trim() ?? "";
   const text = message.toLowerCase();
@@ -112,14 +107,19 @@ export function runDemoAgent(request: AgentRequest, corpus: Corpus): AgentRespon
         "This is a new skill, written from what you just told me. Read what each part means, change anything you want, then save it.",
       skillUsed: "create_skill",
       mode: "draft",
-      results: buildSkillDraft(
-        corpus.exampleMarkdown,
-        corpus.safetyMarkdown,
-        request.builderAnswers,
-      ),
+      results: buildSkillDraft({
+        exampleMarkdown: corpus.exampleMarkdown,
+        safetyMarkdown: corpus.safetyMarkdown,
+        answers: request.builderAnswers,
+        template: findTemplate(request.templateId) ?? templateFromText(message),
+        babyName: baby.name,
+      }),
       learnPrompt: "Next time you can open this skill from your library.",
     };
   }
+
+  const picked = findSkill(momSkills, request.skillName);
+  if (picked) return runSkillLocally(picked, request);
 
   if (!message) {
     return {
@@ -133,14 +133,8 @@ export function runDemoAgent(request: AgentRequest, corpus: Corpus): AgentRespon
 
   if (feelings(text) && momSkills.length > 0 && !/template:/.test(text)) {
     const card =
-      momSkills.find((skill) => skill.name.includes("emotion")) ?? momSkills[momSkills.length - 1];
-    return {
-      reply: momReply(card),
-      skillUsed: card.name,
-      mode: "use",
-      results: [],
-      learnPrompt: `Next time you can open ${titleFromName(card.name)} from your library.`,
-    };
+      momSkills.find((skill) => /emotion|feeling/.test(skill.name)) ?? momSkills[momSkills.length - 1];
+    return runSkillLocally(card, request);
   }
 
   if (wantsNewSkill(text)) {
