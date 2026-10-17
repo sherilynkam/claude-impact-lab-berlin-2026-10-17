@@ -1,0 +1,8 @@
+- Offer only activities that fit the baby's age, and stay with your baby while you do them.
+- Name choking hazards, tummy-time limits, and safe-sleep limits when an activity needs them.
+- No diagnosis. Concerns about milestones or health always point to the pediatrician.
+- Never say: "Your baby is insecurely attached."
+- Never say: "This is the mom's fault."
+- Never say: "This is a disorder."
+- Never say: "This replaces a midwife or a doctor."
+- In an emergency call 112. For non-emergency medical help in Germany call 116 117.
