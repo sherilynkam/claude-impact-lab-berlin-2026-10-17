@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+// Person 2 — Whisper. See worksplit.md Role 2.
+// Hold to talk → onTranscript(text). Two engines behind the same button:
+// - "server": record with MediaRecorder and POST /api/transcribe (ElevenLabs or Whisper),
+//   used when GET /api/transcribe reports a provider.
+// - "browser": the browser's own speech recognition, used when the server has no key.
+// The type field calls the same onTranscript. This component never calls /api/agent.
+
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 
 type SpeechRec = {
   lang: string;
@@ -12,6 +19,16 @@ type SpeechRec = {
   onerror: (() => void) | null;
   onend: (() => void) | null;
 };
+
+type Engine = "server" | "browser";
+type Phase = "idle" | "listening" | "writing";
+
+const MIC_FAILED = "I couldn’t use the microphone. Type the sentence below.";
+const NOT_CAUGHT = "I didn’t catch that. Hold the button and say it once more.";
+const SERVICE_DOWN = "The voice service isn’t answering right now. You can type the sentence below.";
+
+// Recordings shorter than this are almost always an accidental tap.
+const MIN_RECORDING_MS = 400;
 
 function recognition(): SpeechRec | null {
   if (typeof window === "undefined") return null;
@@ -26,6 +43,16 @@ function recognition(): SpeechRec | null {
   return rec;
 }
 
+function canRecord() {
+  return typeof navigator !== "undefined" && !!navigator.mediaDevices?.getUserMedia && typeof MediaRecorder !== "undefined";
+}
+
+function fileName(type: string) {
+  if (type.includes("mp4")) return "recording.mp4";
+  if (type.includes("ogg")) return "recording.ogg";
+  return "recording.webm";
+}
+
 export function TalkButton({
   disabled,
   onTranscript,
@@ -33,21 +60,46 @@ export function TalkButton({
   disabled?: boolean;
   onTranscript: (text: string) => void;
 }) {
-  const [phase, setPhase] = useState<"idle" | "listening" | "writing">("idle");
+  const [engine, setEngine] = useState<Engine>("browser");
+  const [phase, setPhase] = useState<Phase>("idle");
   const [draft, setDraft] = useState("");
   const [micHint, setMicHint] = useState("");
+
+  const holdingRef = useRef(false);
+  // Browser engine
   const heard = useRef("");
   const recRef = useRef<SpeechRec | null>(null);
+  // Server engine
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const startedAtRef = useRef(0);
 
   useEffect(() => {
+    let cancelled = false;
+    fetch("/api/transcribe")
+      .then((res) => res.json() as Promise<{ provider?: string | null }>)
+      .then((data) => {
+        if (!cancelled && data.provider && canRecord()) setEngine("server");
+      })
+      .catch(() => {
+        /* stay on browser speech recognition */
+      });
     return () => {
+      cancelled = true;
       try {
         recRef.current?.stop();
       } catch {
         /* already stopped */
       }
+      releaseMic();
     };
   }, []);
+
+  function releaseMic() {
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+  }
 
   function finish(text: string) {
     const clean = text.trim();
@@ -55,8 +107,9 @@ export function TalkButton({
     if (clean) onTranscript(clean);
   }
 
-  function startListening() {
-    if (disabled) return;
+  // ---- Browser engine: the browser's speech recognition ----
+
+  function startBrowser() {
     const rec = recognition();
     if (!rec) {
       setMicHint("This browser has no speech recognition. Type the sentence, or tap a line below.");
@@ -71,7 +124,7 @@ export function TalkButton({
         .trim();
     };
     rec.onerror = () => {
-      setMicHint("I couldn’t use the microphone. Type the sentence below.");
+      setMicHint(MIC_FAILED);
       setPhase("idle");
     };
     rec.onend = () => finish(heard.current);
@@ -80,18 +133,122 @@ export function TalkButton({
       setPhase("listening");
       setMicHint("");
     } catch {
-      setMicHint("I couldn’t use the microphone. Type the sentence below.");
+      setMicHint(MIC_FAILED);
       setPhase("idle");
     }
   }
 
-  function stopListening() {
-    if (phase !== "listening") return;
+  function stopBrowser() {
     setPhase("writing");
     try {
       recRef.current?.stop();
     } catch {
       finish(heard.current);
+    }
+  }
+
+  // ---- Server engine: record, then ElevenLabs or Whisper via /api/transcribe ----
+
+  async function startServer() {
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch {
+      holdingRef.current = false;
+      setMicHint(MIC_FAILED);
+      return;
+    }
+
+    // She let go while the browser was still asking for the microphone.
+    if (!holdingRef.current) {
+      stream.getTracks().forEach((track) => track.stop());
+      return;
+    }
+
+    streamRef.current = stream;
+    chunksRef.current = [];
+    const recorder = new MediaRecorder(stream);
+    recorderRef.current = recorder;
+
+    recorder.ondataavailable = (event) => {
+      if (event.data.size > 0) chunksRef.current.push(event.data);
+    };
+    recorder.onstop = () => {
+      releaseMic();
+      const type = recorder.mimeType || chunksRef.current[0]?.type || "audio/webm";
+      const audio = new Blob(chunksRef.current, { type });
+      const tooShort = Date.now() - startedAtRef.current < MIN_RECORDING_MS;
+      if (tooShort || audio.size === 0) {
+        setPhase("idle");
+        setMicHint("Keep holding the button while you speak.");
+        return;
+      }
+      void sendRecording(audio);
+    };
+
+    startedAtRef.current = Date.now();
+    recorder.start();
+    setMicHint("");
+    setPhase("listening");
+  }
+
+  function stopServer() {
+    const recorder = recorderRef.current;
+    recorderRef.current = null;
+    if (recorder && recorder.state === "recording") {
+      setPhase("writing");
+      recorder.stop();
+    }
+  }
+
+  async function sendRecording(audio: Blob) {
+    setPhase("writing");
+    const body = new FormData();
+    body.append("audio", audio, fileName(audio.type));
+
+    try {
+      const res = await fetch("/api/transcribe", { method: "POST", body });
+      const data = (await res.json()) as { text?: string; error?: string };
+      if (res.ok && data.text) {
+        finish(data.text);
+        return;
+      }
+      // The server lost its key: use browser speech recognition from now on.
+      if (res.status === 500) setEngine("browser");
+      setMicHint(data.error ?? NOT_CAUGHT);
+    } catch {
+      setMicHint(SERVICE_DOWN);
+    }
+    setPhase("idle");
+  }
+
+  // ---- Shared press handling ----
+
+  function startListening() {
+    if (disabled || phase !== "idle" || holdingRef.current) return;
+    holdingRef.current = true;
+    if (engine === "server") void startServer();
+    else startBrowser();
+  }
+
+  function stopListening() {
+    if (!holdingRef.current) return;
+    holdingRef.current = false;
+    if (engine === "server") stopServer();
+    else if (phase === "listening") stopBrowser();
+  }
+
+  function onKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
+    if ((event.key === " " || event.key === "Enter") && !event.repeat) {
+      event.preventDefault();
+      startListening();
+    }
+  }
+
+  function onKeyUp(event: KeyboardEvent<HTMLButtonElement>) {
+    if (event.key === " " || event.key === "Enter") {
+      event.preventDefault();
+      stopListening();
     }
   }
 
@@ -103,12 +260,17 @@ export function TalkButton({
         type="button"
         className="talk"
         data-state={phase}
-        disabled={disabled}
+        data-engine={engine}
+        disabled={disabled || phase === "writing"}
         aria-pressed={phase === "listening"}
         onPointerDown={startListening}
         onPointerUp={stopListening}
         onPointerLeave={stopListening}
+        onPointerCancel={stopListening}
+        onKeyDown={onKeyDown}
+        onKeyUp={onKeyUp}
         onContextMenu={(event) => event.preventDefault()}
+        style={{ touchAction: "none", userSelect: "none", WebkitUserSelect: "none" }}
       >
         {label}
       </button>
