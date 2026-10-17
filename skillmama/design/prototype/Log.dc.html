@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>How did it go</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&amp;family=DM+Sans:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#6A4BD6}a:hover{color:#4F35B0}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; background: linear-gradient(180deg, #F2ECFF 0%, #EFE9FF 50%, #EADFFF 100%); font-family: 'DM Sans', sans-serif; color: #241B3A; display: flex; flex-direction: column; padding: 52px 20px 28px; gap: 20px">
+  <div style="display: flex; align-items: center; gap: 12px">
+    <a href="Detail.dc.html" aria-label="Back" style="width: 44px; height: 44px; border-radius: 999px; background: #FFFFFF; display: flex; align-items: center; justify-content: center; color: #241B3A">
+      <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"></path></svg>
+    </a>
+  </div>
+  <div style="display: flex; flex-direction: column; gap: 6px; padding: 0 4px">
+    <h1 style="margin: 0; font-family: Outfit, sans-serif; font-weight: 700; font-size: 28px; line-height: 1.15">How did Mila like it?</h1>
+    <p style="margin: 0; font-size: 15px; color: #4E4A66">Basket with known objects · today</p>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 10px">
+    <sc-for list="{{reactions}}" as="r" hint-placeholder-count="3">
+      <button onClick="{{r.pick}}" style="{{r.style}}">
+        <span style="font-family: Outfit, sans-serif; font-weight: 600; font-size: 18px">{{r.label}}</span>
+        <span style="font-size: 14px; color: #4E4A66">{{r.hint}}</span>
+      </button>
+    </sc-for>
+  </div>
+
+  <div style="background: #FFFFFF; border-radius: 20px; padding: 16px; display: flex; align-items: center; gap: 14px">
+    <button aria-label="Record a note" style="width: 48px; height: 48px; border-radius: 999px; border: none; background: #ECE5FF; color: #5A3FC4; display: flex; align-items: center; justify-content: center; flex-shrink: 0; cursor: pointer">
+      <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0"></path></svg>
+    </button>
+    <div style="display: flex; flex-direction: column; gap: 2px">
+      <div style="font-weight: 600; font-size: 15px">Add a voice note</div>
+      <div style="font-size: 14px; color: #4E4A66">"She always grabbed the blue rattle first."</div>
+    </div>
+  </div>
+
+  <div style="flex-grow: 1"></div>
+  <a href="History.dc.html" style="height: 58px; border-radius: 999px; background: linear-gradient(90deg, #7357DF, #8A4FD8); color: #FFFFFF; font-weight: 600; font-size: 17px; display: flex; align-items: center; justify-content: center; text-decoration: none; box-shadow: 0 10px 24px rgba(115,87,223,0.3)">Save to our journey</a>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { picked: 'loved' }; }
+  renderVals() {
+    const base = 'text-align: left; font: inherit; color: #241B3A; cursor: pointer; border-radius: 20px; padding: 16px 18px; display: flex; flex-direction: column; gap: 4px; min-height: 72px; ';
+    const items = [
+      { id: 'loved', label: 'Loved it', hint: 'Suggest more like this' },
+      { id: 'okay', label: 'It was okay', hint: 'Try again in a few days' },
+      { id: 'notyet', label: 'Not interested yet', hint: 'Come back to it later' }
+    ];
+    return {
+      reactions: items.map((r) => ({
+        ...r,
+        style: base + (this.state.picked === r.id
+          ? 'background: #FFFFFF; border: 2px solid #7357DF; box-shadow: 0 8px 22px rgba(115,70,210,0.18);'
+          : 'background: rgba(255,255,255,0.7); border: 2px solid transparent;'),
+        pick: () => this.setState({ picked: r.id })
+      }))
+    };
+  }
+}
+</script>
+</body>
+</html>

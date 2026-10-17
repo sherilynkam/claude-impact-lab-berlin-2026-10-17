@@ -1,8 +1,10 @@
-import type { Baby, SkillCard } from "./types";
+import { withAge } from "./baby";
+import type { Baby, JourneyEntry, SkillCard } from "./types";
 
 const BABY_KEY = "skillmama-baby";
 const SKILLS_KEY = "skillmama-skills";
 const CONFIDENCE_KEY = "skillmama-confidence";
+const JOURNEY_KEY = "skillmama-journey";
 
 const memory = new Map<string, string>();
 
@@ -65,12 +67,7 @@ function readJson<T>(key: string): T | null {
 export function loadBaby(): Baby | null {
   const baby = readJson<Baby>(BABY_KEY);
   if (!baby || typeof baby.ageMonths !== "number") return null;
-  return {
-    ageMonths: baby.ageMonths,
-    materials: baby.materials ?? "",
-    minutesAvailable: baby.minutesAvailable ?? 20,
-    completedActivityIds: Array.isArray(baby.completedActivityIds) ? baby.completedActivityIds : [],
-  };
+  return withAge(baby);
 }
 
 export function saveBaby(baby: Baby) {
@@ -99,8 +96,19 @@ export function saveConfidence(confidence: Confidence) {
   write(CONFIDENCE_KEY, JSON.stringify(confidence));
 }
 
+export function loadJourney(): JourneyEntry[] {
+  const entries = readJson<JourneyEntry[]>(JOURNEY_KEY);
+  if (!Array.isArray(entries)) return [];
+  return entries.filter((entry) => entry && typeof entry.title === "string" && typeof entry.at === "string");
+}
+
+export function saveJourney(entries: JourneyEntry[]) {
+  write(JOURNEY_KEY, JSON.stringify(entries));
+}
+
 export function clearDemo() {
   remove(BABY_KEY);
   remove(SKILLS_KEY);
   remove(CONFIDENCE_KEY);
+  remove(JOURNEY_KEY);
 }

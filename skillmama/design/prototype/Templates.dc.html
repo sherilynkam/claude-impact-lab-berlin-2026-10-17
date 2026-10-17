@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Skill templates</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&amp;family=DM+Sans:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#6A4BD6}a:hover{color:#4F35B0}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; background: linear-gradient(180deg, #F2ECFF 0%, #EFE9FF 50%, #EADFFF 100%); font-family: 'DM Sans', sans-serif; color: #241B3A; display: flex; flex-direction: column; padding: 52px 20px 24px; gap: 14px">
+  <div style="display: flex; align-items: center; gap: 12px">
+    <a href="Learn.dc.html" aria-label="Back" style="width: 44px; height: 44px; border-radius: 999px; background: #FFFFFF; display: flex; align-items: center; justify-content: center; color: #241B3A">
+      <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"></path></svg>
+    </a>
+    <div style="font-size: 13px; color: #4E4A66">Step 1 of 3</div>
+  </div>
+  <div style="display: flex; flex-direction: column; gap: 4px; padding: 0 4px">
+    <h1 style="margin: 0; font-family: Outfit, sans-serif; font-weight: 700; font-size: 28px; line-height: 1.15; letter-spacing: -0.01em">Pick a starting point</h1>
+    <p style="margin: 0; font-size: 15px; color: #4E4A66">Choose a template, then make it yours with Claude.</p>
+  </div>
+
+  <div style="display: flex; gap: 8px; flex-wrap: wrap">
+    <sc-for list="{{filters}}" as="f" hint-placeholder-count="4">
+      <button onClick="{{f.pick}}" style="{{f.style}}">{{f.label}}</button>
+    </sc-for>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px">
+    <sc-for list="{{templates}}" as="t" hint-placeholder-count="6">
+      <a href="CreateSkill.dc.html" style="text-decoration: none; color: #241B3A; background: #FFFFFF; border-radius: 20px; padding: 14px; display: flex; flex-direction: column; gap: 8px; min-height: 148px; box-sizing: border-box; box-shadow: 0 6px 18px rgba(115,70,210,0.1)">
+        <div style="{{t.iconStyle}}">{{t.initial}}</div>
+        <div style="font-family: Outfit, sans-serif; font-weight: 600; font-size: 16px; line-height: 1.2">{{t.name}}</div>
+        <div style="font-size: 13px; line-height: 1.35; color: #4E4A66">{{t.desc}}</div>
+      </a>
+    </sc-for>
+  </div>
+
+  <div style="flex-grow: 1"></div>
+  <a href="CreateSkill.dc.html" style="height: 52px; border-radius: 999px; border: 2px dashed #B9A8F2; color: #5A3FC4; font-weight: 600; font-size: 15px; display: flex; align-items: center; justify-content: center; text-decoration: none; box-sizing: border-box">None fit? Start from scratch</a>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { filter: 'all' }; }
+  renderVals() {
+    const f = this.state.filter;
+    const chip = 'font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; border-radius: 999px; padding: 0 14px; min-height: 40px; ';
+    const filters = [
+      { id: 'all', label: 'All' },
+      { id: 'dev', label: 'Development' },
+      { id: 'care', label: 'Daily care' },
+      { id: 'me', label: 'For me' }
+    ];
+    const tones = ['#7357DF', '#8A4FD8', '#A06CE6'];
+    const all = [
+      { cat: 'dev', name: 'Feelings & bonding', desc: 'Small ways to support her emotions' },
+      { cat: 'dev', name: 'First words', desc: 'Talk, sing and read at her level' },
+      { cat: 'dev', name: 'Movement & tummy time', desc: 'Age-fit ways to move and explore' },
+      { cat: 'care', name: 'Sleep routine', desc: 'A calm, simple bedtime rhythm' },
+      { cat: 'care', name: 'Bath & care time', desc: 'Turn daily care into connection' },
+      { cat: 'me', name: 'A moment for me', desc: '5-minute resets for tired days' }
+    ];
+    const shown = all.filter((t) => f === 'all' || t.cat === f);
+    return {
+      filters: filters.map((x) => ({
+        ...x,
+        style: chip + (f === x.id
+          ? 'background: #241B3A; color: #FFFFFF; border: 2px solid #241B3A;'
+          : 'background: #FFFFFF; color: #241B3A; border: 2px solid #E2DEF5;'),
+        pick: () => this.setState({ filter: x.id })
+      })),
+      templates: shown.map((t, i) => ({
+        ...t,
+        initial: t.name.charAt(0),
+        iconStyle: 'width: 40px; height: 40px; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: #FFFFFF; font-family: Outfit, sans-serif; font-weight: 700; font-size: 18px; background: ' + tones[i % 3] + ';'
+      }))
+    };
+  }
+}
+</script>
+</body>
+</html>

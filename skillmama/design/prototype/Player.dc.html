@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Audio lesson</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&amp;family=DM+Sans:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#6A4BD6}a:hover{color:#4F35B0}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; background: linear-gradient(180deg, #EDE4FF 0%, #F2ECFF 60%, #EADFFF 100%); font-family: 'DM Sans', sans-serif; color: #241B3A; display: flex; flex-direction: column; padding: 52px 24px 28px; gap: 18px">
+  <div style="display: flex; justify-content: space-between; align-items: center">
+    <a href="Learn.dc.html" aria-label="Close player" style="width: 44px; height: 44px; border-radius: 999px; background: #FFFFFF; display: flex; align-items: center; justify-content: center; color: #241B3A">
+      <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg>
+    </a>
+    <div style="font-size: 13px; font-weight: 600; color: #5A3FC4">Episode 2 of 3</div>
+    <div style="width: 44px"></div>
+  </div>
+
+  <div style="align-self: center; width: 260px; height: 260px; border-radius: 32px; background: linear-gradient(135deg, #7357DF 0%, #8A4FD8 55%, #B37BE8 100%); display: flex; flex-direction: column; justify-content: flex-end; padding: 22px; box-sizing: border-box; color: #FFFFFF; box-shadow: 0 18px 40px rgba(115,70,210,0.3)">
+    <svg aria-hidden="true" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: auto"><path d="M3 14v-2a9 9 0 0 1 18 0v2"></path><rect x="3" y="14" width="4" height="6" rx="1.5"></rect><rect x="17" y="14" width="4" height="6" rx="1.5"></rect></svg>
+    <div style="font-size: 13px; font-weight: 600">SKILL SCHOOL</div>
+    <div style="font-family: Outfit, sans-serif; font-weight: 700; font-size: 24px; line-height: 1.15">Tell Claude how to answer</div>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 8px">
+    <div style="height: 6px; border-radius: 999px; background: #FFFFFF"><div style="width: 38%; height: 6px; border-radius: 999px; background: linear-gradient(90deg, #7357DF, #8A4FD8)"></div></div>
+    <div style="display: flex; justify-content: space-between; font-size: 13px; color: #4E4A66"><span>1:08</span><span>3:00</span></div>
+  </div>
+
+  <div style="display: flex; justify-content: center; align-items: center; gap: 28px">
+    <button aria-label="Back 15 seconds" style="width: 48px; height: 48px; border-radius: 999px; border: none; background: #FFFFFF; color: #241B3A; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer">-15</button>
+    <button onClick="{{toggle}}" aria-label="{{playLabel}}" style="width: 76px; height: 76px; border-radius: 999px; border: none; background: linear-gradient(135deg, #7357DF, #8A4FD8); color: #FFFFFF; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 10px 24px rgba(115,87,223,0.35)">
+      <sc-if value="{{playing}}" hint-placeholder-val="{{ true }}">
+        <svg aria-hidden="true" width="30" height="30" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"></rect><rect x="14" y="5" width="4" height="14" rx="1"></rect></svg>
+      </sc-if>
+      <sc-if value="{{paused}}" hint-placeholder-val="{{ false }}">
+        <svg aria-hidden="true" width="30" height="30" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"></path></svg>
+      </sc-if>
+    </button>
+    <button aria-label="Forward 15 seconds" style="width: 48px; height: 48px; border-radius: 999px; border: none; background: #FFFFFF; color: #241B3A; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer">+15</button>
+  </div>
+
+  <div style="background: #FFFFFF; border-radius: 20px; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px">
+    <div style="font-size: 13px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #5A3FC4">Key idea</div>
+    <div style="font-size: 15px; line-height: 1.45">Tell Claude who it's talking to and how: "Keep it short, warm, and easy to read aloud."</div>
+  </div>
+
+  <div style="flex-grow: 1"></div>
+  <a href="Templates.dc.html" style="height: 56px; border-radius: 999px; background: #FFFFFF; color: #5A3FC4; font-weight: 600; font-size: 16px; display: flex; align-items: center; justify-content: center; text-decoration: none">Try it now with a template</a>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { playing: true }; }
+  renderVals() {
+    const p = this.state.playing;
+    return {
+      playing: p,
+      paused: !p,
+      playLabel: p ? 'Pause' : 'Play',
+      toggle: () => this.setState({ playing: !p })
+    };
+  }
+}
+</script>
+</body>
+</html>

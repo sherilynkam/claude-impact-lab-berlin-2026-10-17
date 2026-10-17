@@ -45,16 +45,24 @@ function poolFor(fileActivities: Activity[], ageMonths: number, completed: strin
   return [...fileActivities, ...DEMO_ACTIVITIES.filter((activity) => !ids.has(activity.id))];
 }
 
-function feelings(text: string) {
-  return /emotion|feeling|cry|crying|cries|weinen|weint|unruhig|gefühl|gefuhl|overwhelmed|upset|comfort/.test(
+export function feelings(text: string) {
+  return /emotion|feeling|cry|crying|cries|weinen|weint|unruhig|gefühl|gefuhl|overwhelmed|upset|comfort|bonding|fussy/.test(
     text,
   );
 }
 
-function emergency(text: string) {
+export function emergency(text: string) {
   return /not breathing|isn't breathing|isnt breathing|cannot breathe|can't breathe|unconscious|turned blue|blue lips|notfall|atmet nicht|keine luft/.test(
     text,
   );
+}
+
+export function wantsNewSkill(text: string) {
+  return feelings(text) || /new skill|make (me )?a skill|build a skill|start from scratch|template:/.test(text);
+}
+
+export function activityPool(fileActivities: Activity[], ageMonths: number, completed: string[]) {
+  return poolFor(fileActivities, ageMonths, completed);
 }
 
 function activityReply(baby: AgentRequest["baby"]) {
@@ -123,7 +131,7 @@ export function runDemoAgent(request: AgentRequest, corpus: Corpus): AgentRespon
     };
   }
 
-  if (feelings(text) && momSkills.length > 0) {
+  if (feelings(text) && momSkills.length > 0 && !/template:/.test(text)) {
     const card =
       momSkills.find((skill) => skill.name.includes("emotion")) ?? momSkills[momSkills.length - 1];
     return {
@@ -135,7 +143,7 @@ export function runDemoAgent(request: AgentRequest, corpus: Corpus): AgentRespon
     };
   }
 
-  if (feelings(text)) {
+  if (wantsNewSkill(text)) {
     return {
       reply:
         "There isn’t a skill for this yet. Three short questions give it your baby’s moment, not a generic answer.",
@@ -147,7 +155,7 @@ export function runDemoAgent(request: AgentRequest, corpus: Corpus): AgentRespon
   }
 
   const activities = selectActivities(
-    poolFor(normalizeActivities(corpus.activities), baby.ageMonths, baby.completedActivityIds),
+    activityPool(normalizeActivities(corpus.activities), baby.ageMonths, baby.completedActivityIds),
     baby,
   );
 

@@ -1,0 +1,23 @@
+{"v":3,"createdOnFiles":{"v":1,"at":"2026-10-17T11:58:00Z"},"title":"SkillMama Prototype","launch":{"view":"canvas"},"pages":[],
+"boards":{
+"Main.dc.html":{"x":0,"y":0,"w":390,"h":844,"title":"1 · Welcome & baby profile","is_interactive":true},
+"Home.dc.html":{"x":470,"y":0,"w":390,"h":844,"title":"2 · Home (voice first)","is_interactive":true},
+"Listening.dc.html":{"x":940,"y":0,"w":390,"h":844,"title":"3 · Listening","is_interactive":true},
+"Results.dc.html":{"x":1410,"y":0,"w":390,"h":844,"title":"4 · Activity suggestions","is_interactive":true},
+"Detail.dc.html":{"x":1880,"y":0,"w":390,"h":844,"title":"5 · Activity detail","is_interactive":true},
+"Log.dc.html":{"x":2350,"y":0,"w":390,"h":844,"title":"6 · How did it go?","is_interactive":true},
+"Library.dc.html":{"x":0,"y":1220,"w":390,"h":844,"title":"7 · Skill library","is_interactive":true},
+"Learn.dc.html":{"x":470,"y":1220,"w":390,"h":844,"title":"8 · Learn: how to build a skill","is_interactive":true},
+"Player.dc.html":{"x":940,"y":1220,"w":390,"h":844,"title":"9 · Audio lesson","is_interactive":true},
+"Templates.dc.html":{"x":1410,"y":1220,"w":390,"h":844,"title":"10 · Skill templates","is_interactive":true},
+"CreateSkill.dc.html":{"x":1880,"y":1220,"w":390,"h":844,"title":"11 · Build with Claude (chat)","is_interactive":true},
+"SkillPreview.dc.html":{"x":2350,"y":1220,"w":390,"h":844,"title":"12 · Review & save skill","is_interactive":true},
+"History.dc.html":{"x":2820,"y":1220,"w":390,"h":844,"title":"13 · Our journey","is_interactive":true}
+},
+"order":["Main.dc.html","Home.dc.html","Listening.dc.html","Results.dc.html","Detail.dc.html","Log.dc.html","Library.dc.html","Learn.dc.html","Player.dc.html","Templates.dc.html","CreateSkill.dc.html","SkillPreview.dc.html","History.dc.html"],
+"notes":{
+"row1":{"x":0,"y":-260,"text":"Flow A · Use a skill: find a Montessori activity","kind":"title1","maxW":2740},
+"row2":{"x":0,"y":960,"text":"Flow B · Build your own skill: learn, pick a template, create","kind":"title1","maxW":3210},
+"n1":{"x":3290,"y":1220,"w":360,"maxH":480,"text":"Pitch path A: Home → hold mic → Listening → Suggestions → Detail → We did it → Journey.\n\nPitch path B: Skills → Learn (video/audio) → Templates → Build with Claude → Save.\n\nActivity content comes from montessori_activities.json, filtered by age_min_months and what's already logged.","size":"m","fill":"purple"}
+},
+"designSystems":[]}

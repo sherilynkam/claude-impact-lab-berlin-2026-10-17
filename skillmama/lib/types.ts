@@ -16,10 +16,24 @@ export type Activity = {
 };
 
 export type Baby = {
+  name: string;
+  parentName: string;
+  dateOfBirth: string;
   ageMonths: number;
   materials: string;
   minutesAvailable: number;
   completedActivityIds: string[];
+};
+
+export type Reaction = "loved" | "okay" | "notyet";
+
+export type JourneyEntry = {
+  id: string;
+  activityId: string;
+  title: string;
+  reaction: Reaction;
+  note: string;
+  at: string;
 };
 
 export type SkillCard = {

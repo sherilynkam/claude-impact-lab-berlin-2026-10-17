@@ -3,13 +3,15 @@
 export function ConfidenceCheck({
   value,
   onChange,
+  label = "How confident are you using AI now?",
 }: {
   value: number | null;
   onChange: (value: number) => void;
+  label?: string;
 }) {
   return (
     <div className="field">
-      How confident are you using AI now?
+      {label}
       <div className="confidence-row" role="group" aria-label="Confidence now, from 1 to 5">
         {[1, 2, 3, 4, 5].map((score) => (
           <button

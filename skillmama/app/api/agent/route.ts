@@ -1,10 +1,10 @@
-// Demo brain for the pitch. No API key required.
-// The page uses this route, and repeats the same logic in the browser if the route fails.
-// Swap in Claude later; keep runDemoAgent as the fallback so the recording still works.
+// Claude when ANTHROPIC_API_KEY is set, otherwise the local demo brain.
+// Both return the same JSON. The page repeats the demo brain if this route fails.
 
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { normalizeActivities, runDemoAgent } from "../../../lib/demo-agent";
+import { runAgent } from "../../../lib/agent";
+import { normalizeActivities } from "../../../lib/demo-agent";
 import type { AgentRequest } from "../../../lib/types";
 
 function readText(relativePath: string) {
@@ -34,12 +34,26 @@ export async function POST(request: Request) {
     parsed = [];
   }
 
-  const result = runDemoAgent(body, {
-    activities: normalizeActivities(parsed),
-    exampleMarkdown: readText("data/emotional-development-example.md"),
-    safetyMarkdown: readText("skills/_safety.md"),
-    seedMarkdown: readText("skills/montessori-activity-finder.md"),
-  });
+  const result = await runAgent(
+    {
+      ...body,
+      baby: {
+        name: body.baby?.name ?? "",
+        parentName: body.baby?.parentName ?? "",
+        dateOfBirth: body.baby?.dateOfBirth ?? "",
+        ageMonths: body.baby?.ageMonths ?? 0,
+        materials: body.baby?.materials ?? "",
+        minutesAvailable: body.baby?.minutesAvailable ?? 20,
+        completedActivityIds: Array.isArray(body.baby?.completedActivityIds) ? body.baby.completedActivityIds : [],
+      },
+    },
+    {
+      activities: normalizeActivities(parsed),
+      exampleMarkdown: readText("data/emotional-development-example.md"),
+      safetyMarkdown: readText("skills/_safety.md"),
+      seedMarkdown: readText("skills/montessori-activity-finder.md"),
+    },
+  );
 
   return Response.json(result);
 }

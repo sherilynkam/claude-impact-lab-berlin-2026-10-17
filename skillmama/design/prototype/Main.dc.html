@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>SkillMama welcome</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&amp;family=DM+Sans:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#6A4BD6}a:hover{color:#4F35B0}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; background: linear-gradient(160deg, #EFE7FF 0%, #F0E8FF 50%, #E9DDFF 100%); font-family: 'DM Sans', sans-serif; color: #241B3A; display: flex; flex-direction: column; padding: 56px 24px 32px; gap: 28px">
+  <div style="display: flex; align-items: center; gap: 10px">
+    <div style="width: 42px; height: 42px; border-radius: 14px; background: linear-gradient(135deg, #7357DF, #8A4FD8); display: flex; align-items: center; justify-content: center">
+      <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 4.6L18.5 9l-4.7 1.4L12 15l-1.8-4.6L5.5 9l4.7-1.4z"></path><path d="M18 15l.8 2.2L21 18l-2.2.8L18 21l-.8-2.2L15 18l2.2-.8z"></path></svg>
+    </div>
+    <div style="font-family: Outfit, sans-serif; font-weight: 700; font-size: 24px; letter-spacing: -0.01em">SkillMama</div>
+  </div>
+  <div style="display: flex; flex-direction: column; gap: 12px">
+    <h1 style="margin: 0; font-family: Outfit, sans-serif; font-weight: 700; font-size: 38px; line-height: 1.05; letter-spacing: -0.02em">Just say it.<br>We'll find what to do.</h1>
+    <p style="margin: 0; font-size: 17px; line-height: 1.5; color: #4E4563">Playful ideas for you and your baby, matched to their age and what you've already tried together.</p>
+  </div>
+  <div style="background: rgba(255,255,255,0.78); border-radius: 24px; padding: 20px; display: flex; flex-direction: column; gap: 16px; box-shadow: 0 10px 30px rgba(115,70,210,0.12)">
+    <div style="font-family: Outfit, sans-serif; font-weight: 600; font-size: 18px">Meet your baby</div>
+    <div style="display: flex; flex-direction: column; gap: 6px">
+      <label for="bn" style="font-size: 14px; color: #4E4563">Baby's name</label>
+      <input id="bn" value="Mila" style="height: 50px; border: 1.5px solid #DCD6F0; border-radius: 14px; padding: 0 14px; font: inherit; font-size: 16px; color: #241B3A; background: #FFFFFF">
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 6px">
+      <label for="bd" style="font-size: 14px; color: #4E4563">Date of birth</label>
+      <input id="bd" value="12 May 2026" style="height: 50px; border: 1.5px solid #DCD6F0; border-radius: 14px; padding: 0 14px; font: inherit; font-size: 16px; color: #241B3A; background: #FFFFFF">
+    </div>
+    <div style="font-size: 14px; color: #3B3355; background: linear-gradient(90deg, #ECE5FF, #F1E6FF); border-radius: 12px; padding: 10px 12px">Mila is 5 months old. Ideas grow with her.</div>
+  </div>
+  <div style="flex-grow: 1"></div>
+  <div style="display: flex; flex-direction: column; gap: 12px">
+    <a href="Home.dc.html" style="height: 58px; border-radius: 999px; background: linear-gradient(90deg, #7357DF, #8A4FD8); color: #FFFFFF; font-weight: 600; font-size: 17px; display: flex; align-items: center; justify-content: center; text-decoration: none; box-shadow: 0 10px 24px rgba(115,87,223,0.3)">Let's go</a>
+    <p style="margin: 0; font-size: 13px; line-height: 1.4; color: #4E4563; text-align: center">Not medical advice. For health or development concerns, talk to your pediatrician.</p>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ageError, type Baby } from "../lib/baby";
+import { withAge, type Baby } from "../lib/baby";
 import { Disclaimer } from "./Disclaimer";
 
 const MINUTES = [5, 10, 20];
@@ -22,19 +22,24 @@ export function Onboarding({
   const [error, setError] = useState("");
 
   function start() {
-    const problem = ageError(age);
-    if (problem) {
-      setError(problem);
+    if (!/^\d+$/.test(age.trim())) {
+      setError("Enter the age in months, for example 5.");
+      return;
+    }
+    const ageMonths = Number(age);
+    if (ageMonths < 0 || ageMonths > 24) {
+      setError("Enter the age in months, for example 5.");
       return;
     }
     if (confidence === null) return;
     onStart(
-      {
-        ageMonths: Number(age),
+      withAge({
+        ...initialBaby,
+        ageMonths,
         materials: materials.trim(),
         minutesAvailable: minutes,
-        completedActivityIds: initialBaby.completedActivityIds,
-      },
+        dateOfBirth: "",
+      }),
       confidence,
     );
   }
